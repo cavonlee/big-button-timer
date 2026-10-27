@@ -1,7 +1,7 @@
 /* 大按键计时器：离线缓存（加桌面后打开就能用，不用等网络）。
    策略：应用外壳 cache-first（index.html / 字体 / 图标 / manifest），
    其它同源请求走网络、失败回缓存；页面导航失败时回 index.html。 */
-const CACHE = 'timer-cache-v1';
+const CACHE = 'timer-cache-v2';
 const SHELL = [
   './',
   './index.html',
