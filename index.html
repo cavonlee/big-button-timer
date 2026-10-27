@@ -4,57 +4,128 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#ffffff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="计时器" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="icon" href="icons/icon-192.png" />
 <title>计时器</title>
 <style>
-  :root { --ink: #111; --bg: #fff; --soft: #f2f2f2; }
+  @font-face {
+    font-family: 'DSEG7';
+    src: url('fonts/DSEG7Classic-Bold.woff2') format('woff2');
+    font-weight: 700; font-style: normal; font-display: switch;
+  }
+  :root {
+    --bg: #fff;
+    --ink: #111;
+    --soft: #f2f2f2;
+    --ctl-ink: #111;
+    --ctl-press: #e6e6e6;
+    --panel: #fff;
+    --line: #e7e7e7;
+    --hint: #9a9a9a;
+  }
+  /* 底色：白 / 黑（黑底时控件也换一套中性色，字色由用户另选） */
+  body[data-bg="dark"] { --bg: #000; --soft: rgba(255,255,255,.14); --ctl-ink: #fff; --ctl-press: rgba(255,255,255,.26); --panel: #17171a; --line: #2b2b30; --hint: #8b8b90; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--ink); }
   body { font-family: -apple-system, "SF Pro Text", "HarmonyOS Sans", "PingFang SC", system-ui, sans-serif; touch-action: manipulation; user-select: none; }
   #rotor { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; }
-  body.rotated #rotor {
-    width: 100vh; height: 100vw; inset: auto;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) rotate(90deg);
-    transform-origin: center center;
-  }
-  .tools { position: absolute; top: max(10px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; z-index: 5; }
+  body.rotated #rotor { width: 100vh; height: 100vw; inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); transform-origin: center center; }
+
+  .tools { position: absolute; top: max(10px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; z-index: 6; }
+  .tools-left { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 12px; z-index: 6; }
   .btn {
-    width: 44px; height: 44px; border: 0; border-radius: 22px; background: var(--soft); color: var(--ink);
+    width: 44px; height: 44px; border: 0; border-radius: 22px; background: var(--soft); color: var(--ctl-ink);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
     transition: transform .08s ease, background .15s ease;
   }
-  .btn:active { transform: scale(.92); background: #e6e6e6; }
+  .btn:active { transform: scale(.92); background: var(--ctl-press); }
   .btn svg { width: 22px; height: 22px; display: block; }
+
   .clock { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 3vw; min-height: 0; }
   #time {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "HarmonyOS Sans SC", monospace;
+    font-family: -apple-system, "SF Pro Text", "HarmonyOS Sans", "PingFang SC", system-ui, sans-serif;
     font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: .01em;
     line-height: 1; white-space: nowrap; color: var(--ink);
-    font-size: 30vh; /* JS 会按实际宽高再校准，保证"几乎占满" */
+    font-size: 30vh;
   }
-  .controls { position: absolute; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 10px; z-index: 5; }
+  /* 字体三档 + 发光效果 */
+  body[data-font="digital"] #time { font-family: 'DSEG7', ui-monospace, Menlo, monospace; letter-spacing: 0; }
+  body[data-font="glow"] #time { text-shadow: 0 0 4px var(--ink), 0 0 14px var(--ink), 0 0 34px var(--ink); }
+  body[data-font="outline"] #time {
+    color: transparent; -webkit-text-stroke: 2.5px var(--ink);
+    text-shadow: 0 0 8px var(--ink), 0 0 22px var(--ink);
+  }
+
+  .controls { position: absolute; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 10px; z-index: 6; }
   .controls .btn { width: 52px; height: 52px; border-radius: 26px; }
   .controls .btn svg { width: 24px; height: 24px; }
-  #hint {
-    position: absolute; left: 16px; bottom: max(20px, env(safe-area-inset-bottom)); font-size: 12px; color: #9a9a9a;
-    transition: opacity .6s ease; pointer-events: none;
+  #hint { position: absolute; left: 16px; bottom: max(20px, env(safe-area-inset-bottom)); font-size: 12px; color: var(--hint); transition: opacity .6s ease; pointer-events: none; }
+
+  /* ── 主题面板（左上角）────────────── */
+  #panel {
+    position: absolute; left: 10px; top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    width: 248px; padding: 8px; border-radius: 16px; background: var(--panel);
+    box-shadow: 0 12px 40px rgba(0,0,0,.22); z-index: 20; display: none;
   }
-  @media (prefers-color-scheme: dark) { /* 先保持白底黑字（需求方定稿）；以后做主题再放开 */ }
+  body.panel-open #panel { display: block; }
+  .grp { border-radius: 12px; }
+  .grp + .grp { margin-top: 4px; border-top: 1px solid var(--line); }
+  .grp-head {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 8px;
+    border: 0; background: transparent; color: var(--ctl-ink); font: inherit; font-size: 14px; cursor: pointer; text-align: left;
+  }
+  .grp-head .cur { margin-left: auto; color: var(--hint); font-size: 12px; }
+  .grp-head .chev { transition: transform .15s ease; color: var(--hint); }
+  .grp.open .grp-head .chev { transform: rotate(90deg); }
+  .opts { display: none; flex-wrap: wrap; gap: 8px; padding: 2px 8px 10px; }
+  .grp.open .opts { display: flex; }
+  .sw { width: 30px; height: 30px; border-radius: 15px; border: 2px solid transparent; cursor: pointer; outline: 1px solid var(--line); }
+  .sw.on { border-color: var(--ctl-ink); outline-color: transparent; }
+  .chip {
+    padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: transparent;
+    color: var(--ctl-ink); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .chip.on { border-color: var(--ctl-ink); }
+  .chip.digi { font-family: 'DSEG7', monospace; font-size: 15px; }
+  .chip.neon { text-shadow: 0 0 6px currentColor; }
+  .chip.line { color: transparent; -webkit-text-stroke: 1px var(--ctl-ink); }
 </style>
 </head>
-<body>
+<body data-bg="light" data-font="sans">
   <div id="rotor">
+    <div class="tools-left">
+      <button class="btn" id="btnTheme" type="button" aria-label="主题" title="主题">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"></circle>
+          <circle cx="8.5" cy="9.5" r="1.3" fill="currentColor" stroke="none"></circle>
+          <circle cx="12" cy="7.8" r="1.3" fill="currentColor" stroke="none"></circle>
+          <circle cx="15.5" cy="9.5" r="1.3" fill="currentColor" stroke="none"></circle>
+          <path d="M12 21a3 3 0 0 1 0-6 3 3 0 0 0 0-6"></path>
+        </svg>
+      </button>
+    </div>
+
     <div class="tools">
       <button class="btn" id="btnRotate" type="button" aria-label="旋转屏幕" title="旋转">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="7" y="3" width="10" height="18" rx="2.5"></rect>
-          <path d="M3 8a5 5 0 0 1 4-4"></path><path d="M3 8V4"></path>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="7" width="7" height="11" rx="1.8"></rect>
+          <rect x="14" y="9" width="8" height="5.6" rx="1.6"></rect>
+          <path d="M7 4a6.5 6.5 0 0 1 10.5 2.2"></path>
+          <path d="M17.5 3.2v3.4h-3.4"></path>
         </svg>
       </button>
       <button class="btn" id="btnFull" type="button" aria-label="全屏" title="全屏">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg id="icoExpand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 9V5a1 1 0 0 1 1-1h4"></path><path d="M20 9V5a1 1 0 0 0-1-1h-4"></path>
           <path d="M4 15v4a1 1 0 0 0 1 1h4"></path><path d="M20 15v4a1 1 0 0 1-1 1h-4"></path>
+        </svg>
+        <svg id="icoShrink" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <path d="M9 4v4a1 1 0 0 1-1 1H4"></path><path d="M15 4v4a1 1 0 0 0 1 1h4"></path>
+          <path d="M9 20v-4a1 1 0 0 0-1-1H4"></path><path d="M15 20v-4a1 1 0 0 1 1-1h4"></path>
         </svg>
       </button>
     </div>
@@ -73,6 +144,28 @@
         <svg id="icoPause" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="6.5" y="5" width="4" height="14" rx="1.2"></rect><rect x="13.5" y="5" width="4" height="14" rx="1.2"></rect></svg>
       </button>
     </div>
+
+    <!-- 主题面板：三组（底色 / 字体颜色 / 字体），点一组展开，点选项立即生效 -->
+    <div id="panel" role="dialog" aria-label="主题设置">
+      <div class="grp" data-grp="bg">
+        <button class="grp-head" type="button"><span>底色</span><span class="cur"></span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+        <div class="opts" id="optsBg"></div>
+      </div>
+      <div class="grp" data-grp="color">
+        <button class="grp-head" type="button"><span>字体颜色</span><span class="cur"></span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+        <div class="opts" id="optsColor"></div>
+      </div>
+      <div class="grp" data-grp="font">
+        <button class="grp-head" type="button"><span>字体</span><span class="cur"></span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+        <div class="opts" id="optsFont"></div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -82,18 +175,102 @@
   const btnReset = document.getElementById('btnReset');
   const btnFull = document.getElementById('btnFull');
   const btnRotate = document.getElementById('btnRotate');
+  const btnTheme = document.getElementById('btnTheme');
   const icoPlay = document.getElementById('icoPlay');
   const icoPause = document.getElementById('icoPause');
+  const icoExpand = document.getElementById('icoExpand');
+  const icoShrink = document.getElementById('icoShrink');
   const hint = document.getElementById('hint');
   const clock = document.querySelector('.clock');
-  const rotor = document.getElementById('rotor');
 
-  const STORE = 'timer.rotated';
+  /* ── 主题定义（配色 / 字体都只有这一处）────────────── */
+  const BG = [
+    { id: 'light', label: '白底', css: 'light', sw: '#ffffff' },
+    { id: 'dark', label: '黑底', css: 'dark', sw: '#0a0a0a' },
+  ];
+  const COLORS = [
+    { id: 'ink', label: '黑', value: '#111111', sw: '#111111' },
+    { id: 'white', label: '白', value: '#ffffff', sw: '#ffffff' },
+    { id: 'red', label: '红', value: '#ff3131', sw: '#ff3131' },
+    { id: 'yellow', label: '黄', value: '#ffd400', sw: '#ffd400' },
+    { id: 'blue', label: '蓝', value: '#2ea8ff', sw: '#2ea8ff' },
+    { id: 'green', label: '绿', value: '#2ee66b', sw: '#2ee66b' },
+    { id: 'purple', label: '紫', value: '#b366ff', sw: '#b366ff' },
+  ];
+  const FONTS = [
+    { id: 'sans', label: '黑体' },
+    { id: 'digital', label: '数码管', cls: 'digi' },
+    { id: 'glow', label: '发光', cls: 'neon' },
+    { id: 'outline', label: '线条', cls: 'line' },
+  ];
+  const STORE = { bg: 'timer.bg', color: 'timer.color', font: 'timer.font', rotated: 'timer.rotated' };
+  const theme = {
+    bg: 'light',
+    color: 'ink',
+    font: 'sans',
+  };
+  function load(k, dflt) { try { return localStorage.getItem(k) || dflt; } catch (e) { return dflt; } }
+  function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  const byId = (list, id) => list.find((x) => x.id === id) || list[0];
+
+  function applyTheme() {
+    const bg = byId(BG, theme.bg);
+    const color = byId(COLORS, theme.color);
+    document.body.dataset.bg = bg.css;
+    document.body.dataset.font = byId(FONTS, theme.font).id;
+    document.documentElement.style.setProperty('--ink', color.value);
+    timeEl.style.color = document.body.dataset.font === 'outline' ? 'transparent' : color.value;
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', bg.css === 'dark' ? '#000000' : '#ffffff');
+    paintPickers();
+    requestAnimationFrame(fit);
+  }
+
+  function paintPickers() {
+    const groups = { bg: BG, color: COLORS, font: FONTS };
+    Object.keys(groups).forEach((g) => {
+      const host = document.getElementById(g === 'bg' ? 'optsBg' : g === 'color' ? 'optsColor' : 'optsFont');
+      host.innerHTML = '';
+      groups[g].forEach((opt) => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = g === 'font' ? ('chip ' + (opt.cls || '')) : (g === 'bg' ? 'sw' : 'sw');
+        if (g === 'font') el.textContent = opt.label;
+        else el.style.background = opt.sw;
+        el.title = opt.label;
+        el.setAttribute('aria-label', opt.label);
+        if (theme[g] === opt.id) el.classList.add('on');
+        el.addEventListener('click', () => {
+          theme[g] = opt.id;
+          /* 黑底 + 黑字 / 白底 + 白字 会看不见 ⇒ 自动换成能看清的那个（用户仍可自己再改）。 */
+          if (g === 'bg') {
+            if (opt.css === 'dark' && theme.color === 'ink') theme.color = 'white';
+            if (opt.css === 'light' && theme.color === 'white') theme.color = 'ink';
+          }
+          save(STORE[g], opt.id); save(STORE.color, theme.color);
+          applyTheme();
+        });
+        host.appendChild(el);
+      });
+      const cur = document.querySelector(`.grp[data-grp="${g}"] .cur`);
+      if (cur) cur.textContent = byId(groups[g], theme[g]).label;
+    });
+  }
+
+  /* ── 主题面板开合（点外面关）────────────── */
+  function setPanel(open) { document.body.classList.toggle('panel-open', open); }
+  btnTheme.addEventListener('click', (e) => { e.stopPropagation(); setPanel(!document.body.classList.contains('panel-open')); });
+  document.getElementById('panel').addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', () => setPanel(false));
+  document.querySelectorAll('.grp-head').forEach((h) => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+  });
+
+  /* ── 计时 ─────────────── */
   let running = false;
-  let elapsed = 0;      // 累计毫秒
-  let startedAt = 0;    // 本段开始的时间戳
+  let elapsed = 0;
+  let startedAt = 0;
   let raf = 0;
-
   const pad = (n, w) => String(n).padStart(w, '0');
   function fmt(ms) {
     const total = Math.max(0, ms);
@@ -103,37 +280,28 @@
     const h = Math.floor(total / 3600000);
     return (h > 0 ? h + ':' : '') + pad(m, 2) + ':' + pad(s, 2) + '.' + pad(cs, 2);
   }
-  function now() { return performance.now(); }
+  const now = () => performance.now();
 
-  // 字尽量大：按容器实际宽高量一次文字尺寸，再按比例放大/缩小（字号变了就重算）。
   let measureSize = 100;
+  let lastText = '';
   function fit() {
     const w = clock.clientWidth, h = clock.clientHeight;
     if (w <= 0 || h <= 0) return;
     timeEl.style.fontSize = measureSize + 'px';
-    /* ⚠️ 用 offsetWidth/offsetHeight（**布局尺寸**），不用 getBoundingClientRect：
-       旋转 90° 之后那个 bbox 是"转过的外接框"（宽高互换），拿它算会把字算小一半。 */
+    /* 用 offsetWidth/Height（布局尺寸）：旋转 90° 后 bbox 是转过的外接框，宽高会互换。 */
     const tw = timeEl.offsetWidth, th = timeEl.offsetHeight;
     if (tw <= 0 || th <= 0) return;
     const scale = Math.min(w * 0.97 / tw, h * 0.96 / th);
-    const next = Math.max(24, Math.floor(measureSize * scale));
-    measureSize = next;
-    timeEl.style.fontSize = next + 'px';
+    measureSize = Math.max(24, Math.floor(measureSize * scale));
+    timeEl.style.fontSize = measureSize + 'px';
   }
-
-  function paint() {
-    paintText(fmt(running ? elapsed + (now() - startedAt) : elapsed));
-  }
-  let lastText = '';
-  function paintText(t) {
-    if (t !== lastText) { lastText = t; timeEl.textContent = t; fit(); }
-  }
+  function paintText(t) { if (t !== lastText) { lastText = t; timeEl.textContent = t; fit(); } }
+  function paint() { paintText(fmt(running ? elapsed + (now() - startedAt) : elapsed)); }
   function loop() {
     if (!running) return;
     paintText(fmt(elapsed + (now() - startedAt)));
     raf = requestAnimationFrame(loop);
   }
-
   function setIcon() {
     icoPlay.style.display = running ? 'none' : 'block';
     icoPause.style.display = running ? 'block' : 'none';
@@ -161,14 +329,12 @@
     setIcon();
     hideHint();
   }
-
   function hideHint() { hint.style.opacity = '0'; }
   setTimeout(hideHint, 5000);
 
   btnToggle.addEventListener('click', toggle);
   btnReset.addEventListener('click', reset);
 
-  // ENTER：大按键（单键 USB 键盘默认 Enter）开始/暂停；空格也顺手支持。
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') {
       e.preventDefault();
@@ -177,29 +343,47 @@
     }
   }, { passive: false });
 
-  // 旋转：竖屏时把整块 UI 转 90° 当横屏用（不动系统自动旋转）。
+  /* ── 旋转 / 全屏 ─────────────── */
   function applyRotate(on) {
     document.body.classList.toggle('rotated', !!on);
-    try { localStorage.setItem(STORE, on ? '1' : '0'); } catch (err) {}
-    requestAnimationFrame(() => { fit(); });
+    save(STORE.rotated, on ? '1' : '0');
+    requestAnimationFrame(() => { measureSize = 100; fit(); });
   }
   btnRotate.addEventListener('click', () => applyRotate(!document.body.classList.contains('rotated')));
 
-  // 全屏（不支持就静默忽略；iOS 走不到这里，他的机器支持）
+  function syncFullIcon() {
+    const on = !!document.fullscreenElement;
+    icoExpand.style.display = on ? 'none' : 'block';
+    icoShrink.style.display = on ? 'block' : 'none';
+    btnFull.setAttribute('aria-label', on ? '退出全屏' : '全屏');
+    requestAnimationFrame(fit);
+  }
   btnFull.addEventListener('click', () => {
     const d = document.documentElement;
     if (document.fullscreenElement) { document.exitFullscreen?.(); return; }
     d.requestFullscreen?.().catch(() => {});
   });
+  document.addEventListener('fullscreenchange', syncFullIcon);
 
-  // 尺寸变化 / 转屏 / 全屏切换都重新量字
   window.addEventListener('resize', () => requestAnimationFrame(fit));
   window.addEventListener('orientationchange', () => requestAnimationFrame(fit));
-  document.addEventListener('fullscreenchange', () => requestAnimationFrame(fit));
 
-  try { if (localStorage.getItem(STORE) === '1') applyRotate(true); } catch (err) {}
+  /* PWA：把页面缓存起来（加桌面后打开就能用；断网也能开）。 */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  /* 初始：读回上次的主题 / 旋转（**所有设置都存 localStorage**：底色 / 字色 / 字体 / 旋转） */
+  theme.bg = load(STORE.bg, 'light');
+  theme.color = load(STORE.color, theme.bg === 'dark' ? 'white' : 'ink');
+  theme.font = load(STORE.font, 'sans');
+  applyTheme();
+  if (load(STORE.rotated, '0') === '1') applyRotate(true);
   paint();
   setIcon();
+  syncFullIcon();
 })();
 </script>
 </body>
