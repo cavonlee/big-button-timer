@@ -1,14 +1,18 @@
 /* 大按键计时器：离线缓存（加桌面后打开就能用，不用等网络）。
    策略：应用外壳 cache-first（index.html / 字体 / 图标 / manifest），
    其它同源请求走网络、失败回缓存；页面导航失败时回 index.html。 */
-const CACHE = 'timer-cache-v3';
+const CACHE = 'timer-cache-v4';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './fonts/DSEG7Classic-Bold.woff2',
+  './favicon.ico',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './icons/apple-touch-icon-180.png',
+  './icons/favicon-32.png',
+  './icons/favicon-16.png',
 ];
 
 self.addEventListener('install', (e) => {
@@ -29,7 +33,7 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return;
 
   const isShell = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html') ||
-    url.pathname.includes('/fonts/') || url.pathname.includes('/icons/') ||
+    url.pathname.includes('/fonts/') || url.pathname.includes('/icons/') || url.pathname.endsWith('/favicon.ico') ||
     url.pathname.endsWith('/manifest.webmanifest');
 
   /* 导航请求（打开页面 / 加桌面后启动）：缓存优先，断网也直接起。 */
