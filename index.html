@@ -20,6 +20,12 @@
     src: url('fonts/DSEG7Classic-Bold.woff2') format('woff2');
     font-weight: 700; font-style: normal; font-display: switch;
   }
+  /* 同系列「细线」字重：笔画粗细一致，就是霓虹灯管那种感觉（线条字用它）。 */
+  @font-face {
+    font-family: 'DSEG7-thin';
+    src: url('fonts/DSEG7Classic-Light.woff2') format('woff2');
+    font-weight: 300; font-style: normal; font-display: switch;
+  }
   :root {
     --bg: #fff;
     --ink: #111;
@@ -62,13 +68,12 @@
     line-height: 1; white-space: nowrap; color: var(--ink);
     font-size: 30vh;
   }
-  /* 字体三档 + 发光效果 */
+  /* 字体（三种）和「效果」分开：字体 = 黑体 / 数码管 / 线条（细线 7 段）；效果 = 不发光 / 发光。 */
   body[data-font="digital"] #time { font-family: 'DSEG7', ui-monospace, Menlo, monospace; letter-spacing: 0; }
-  body[data-font="glow"] #time { text-shadow: 0 0 4px var(--ink), 0 0 14px var(--ink), 0 0 34px var(--ink); }
-  body[data-font="outline"] #time {
-    color: transparent; -webkit-text-stroke: 2.5px var(--ink);
-    text-shadow: 0 0 8px var(--ink), 0 0 22px var(--ink);
-  }
+  body[data-font="line"] #time { font-family: 'DSEG7-thin', ui-monospace, Menlo, monospace; letter-spacing: 0; }
+  /* ⚠️ 2026-10-27 需求方：「发光有点太厉害了，它会整体看起来糊糊的」——
+     只留两层很轻的光晕（1px 描亮 + 7px 柔光），不再叠 30px 那种大范围模糊。 */
+  body[data-effect="glow"] #time { text-shadow: 0 0 1px var(--ink), 0 0 7px var(--ink); }
 
   .controls { position: absolute; right: var(--safe-x); bottom: var(--safe-bottom); display: flex; gap: 10px; z-index: 6; }
   .controls .btn { width: 52px; height: 52px; border-radius: 26px; }
@@ -82,8 +87,9 @@
     box-shadow: 0 12px 40px rgba(0,0,0,.22); z-index: 20; display: none;
   }
   body.panel-open #panel { display: block; }
-  .grp { border-radius: 12px; }
-  .grp + .grp { margin-top: 4px; border-top: 1px solid var(--line); }
+  /* 每一组不做圆角（圆角会让组间分隔线变成弧形，看起来怪）；分隔线就是一条横线。 */
+  .grp { border-radius: 0; }
+  .grp + .grp { margin-top: 2px; border-top: 1px solid var(--line); }
   .grp-head {
     display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 8px;
     border: 0; background: transparent; color: var(--ctl-ink); font: inherit; font-size: 14px; cursor: pointer; text-align: left;
@@ -101,6 +107,7 @@
   }
   .chip.on { border-color: var(--ctl-ink); }
   .chip.digi { font-family: 'DSEG7', monospace; font-size: 15px; }
+  .chip.thin { font-family: 'DSEG7-thin', monospace; font-size: 15px; }
   .chip.neon { text-shadow: 0 0 6px currentColor; }
   .chip.line { color: transparent; -webkit-text-stroke: 1px var(--ctl-ink); }
 </style>
@@ -175,6 +182,12 @@
         </button>
         <div class="opts" id="optsFont"></div>
       </div>
+      <div class="grp" data-grp="effect">
+        <button class="grp-head" type="button"><span>效果</span><span class="cur"></span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+        <div class="opts" id="optsEffect"></div>
+      </div>
     </div>
   </div>
 
@@ -210,14 +223,18 @@
   const FONTS = [
     { id: 'sans', label: '黑体' },
     { id: 'digital', label: '数码管', cls: 'digi' },
-    { id: 'glow', label: '发光', cls: 'neon' },
-    { id: 'outline', label: '线条', cls: 'line' },
+    { id: 'line', label: '线条', cls: 'thin' },
   ];
-  const STORE = { bg: 'timer.bg', color: 'timer.color', font: 'timer.font', rotated: 'timer.rotated' };
+  const EFFECTS = [
+    { id: 'none', label: '不发光' },
+    { id: 'glow', label: '发光' },
+  ];
+  const STORE = { bg: 'timer.bg', color: 'timer.color', font: 'timer.font', effect: 'timer.effect', rotated: 'timer.rotated' };
   const theme = {
     bg: 'light',
     color: 'ink',
     font: 'sans',
+    effect: 'none',
   };
   function load(k, dflt) { try { return localStorage.getItem(k) || dflt; } catch (e) { return dflt; } }
   function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -229,23 +246,24 @@
     const color = byId(COLORS, theme.color);
     document.body.dataset.bg = bg.css;
     document.body.dataset.font = byId(FONTS, theme.font).id;
+    document.body.dataset.effect = byId(EFFECTS, theme.effect).id;
     document.documentElement.style.setProperty('--ink', color.value);
-    timeEl.style.color = document.body.dataset.font === 'outline' ? 'transparent' : color.value;
+    timeEl.style.color = color.value;
     document.querySelector('meta[name="theme-color"]').setAttribute('content', bg.css === 'dark' ? '#000000' : '#ffffff');
     paintPickers();
     requestAnimationFrame(fit);
   }
 
   function paintPickers() {
-    const groups = { bg: BG, color: COLORS, font: FONTS };
+    const groups = { bg: BG, color: COLORS, font: FONTS, effect: EFFECTS };
     Object.keys(groups).forEach((g) => {
-      const host = document.getElementById(g === 'bg' ? 'optsBg' : g === 'color' ? 'optsColor' : 'optsFont');
+      const host = document.getElementById(g === 'bg' ? 'optsBg' : g === 'color' ? 'optsColor' : g === 'font' ? 'optsFont' : 'optsEffect');
       host.innerHTML = '';
       groups[g].forEach((opt) => {
         const el = document.createElement('button');
         el.type = 'button';
-        el.className = g === 'font' ? ('chip ' + (opt.cls || '')) : (g === 'bg' ? 'sw' : 'sw');
-        if (g === 'font') el.textContent = opt.label;
+        el.className = g === 'font' ? ('chip ' + (opt.cls || '')) : (g === 'effect' ? 'chip' : 'sw');
+        if (g === 'font' || g === 'effect') el.textContent = opt.label;
         else el.style.background = opt.sw;
         el.title = opt.label;
         el.setAttribute('aria-label', opt.label);
@@ -389,6 +407,7 @@
   theme.bg = load(STORE.bg, 'light');
   theme.color = load(STORE.color, theme.bg === 'dark' ? 'white' : 'ink');
   theme.font = load(STORE.font, 'sans');
+  theme.effect = load(STORE.effect, 'none');
   applyTheme();
   if (load(STORE.rotated, '0') === '1') applyRotate(true);
   paint();

@@ -5,12 +5,13 @@
    · 应用外壳（index.html / 字体 / 图标 / manifest / favicon）：cache-first（限本版本缓存）。
    · 其它同源请求：网络优先，失败回缓存。
    ⚠️ 取缓存一定要 `caches.open(CACHE)` 再 match —— 直接 `caches.match()` 会跨所有历史版本缓存命中旧页面。 */
-const CACHE = 'timer-cache-v5';
+const CACHE = 'timer-cache-v6';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './fonts/DSEG7Classic-Bold.woff2',
+  './fonts/DSEG7Classic-Light.woff2',
   './favicon.ico',
   './icons/icon-192.png',
   './icons/icon-512.png',
