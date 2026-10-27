@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" />
+<title>计时器</title>
+<style>
+  :root { --ink: #111; --bg: #fff; --soft: #f2f2f2; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--ink); }
+  body { font-family: -apple-system, "SF Pro Text", "HarmonyOS Sans", "PingFang SC", system-ui, sans-serif; touch-action: manipulation; user-select: none; }
+  #rotor { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; }
+  body.rotated #rotor {
+    width: 100vh; height: 100vw; inset: auto;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+  }
+  .tools { position: absolute; top: max(10px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; z-index: 5; }
+  .btn {
+    width: 44px; height: 44px; border: 0; border-radius: 22px; background: var(--soft); color: var(--ink);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: transform .08s ease, background .15s ease;
+  }
+  .btn:active { transform: scale(.92); background: #e6e6e6; }
+  .btn svg { width: 22px; height: 22px; display: block; }
+  .clock { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 3vw; min-height: 0; }
+  #time {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "HarmonyOS Sans SC", monospace;
+    font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: .01em;
+    line-height: 1; white-space: nowrap; color: var(--ink);
+    font-size: 30vh; /* JS 会按实际宽高再校准，保证"几乎占满" */
+  }
+  .controls { position: absolute; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 10px; z-index: 5; }
+  .controls .btn { width: 52px; height: 52px; border-radius: 26px; }
+  .controls .btn svg { width: 24px; height: 24px; }
+  #hint {
+    position: absolute; left: 16px; bottom: max(20px, env(safe-area-inset-bottom)); font-size: 12px; color: #9a9a9a;
+    transition: opacity .6s ease; pointer-events: none;
+  }
+  @media (prefers-color-scheme: dark) { /* 先保持白底黑字（需求方定稿）；以后做主题再放开 */ }
+</style>
+</head>
+<body>
+  <div id="rotor">
+    <div class="tools">
+      <button class="btn" id="btnRotate" type="button" aria-label="旋转屏幕" title="旋转">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="3" width="10" height="18" rx="2.5"></rect>
+          <path d="M3 8a5 5 0 0 1 4-4"></path><path d="M3 8V4"></path>
+        </svg>
+      </button>
+      <button class="btn" id="btnFull" type="button" aria-label="全屏" title="全屏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 9V5a1 1 0 0 1 1-1h4"></path><path d="M20 9V5a1 1 0 0 0-1-1h-4"></path>
+          <path d="M4 15v4a1 1 0 0 0 1 1h4"></path><path d="M20 15v4a1 1 0 0 1-1 1h-4"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="clock"><span id="time">00:00.00</span></div>
+    <div id="hint">按大按键（Enter）开始 / 暂停</div>
+
+    <div class="controls">
+      <button class="btn" id="btnReset" type="button" aria-label="复位" title="复位">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>
+        </svg>
+      </button>
+      <button class="btn" id="btnToggle" type="button" aria-label="开始" title="开始 / 暂停">
+        <svg id="icoPlay" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l10-6.5a1 1 0 0 0 0-1.74l-10-6.5A1 1 0 0 0 8 5.5z"></path></svg>
+        <svg id="icoPause" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="6.5" y="5" width="4" height="14" rx="1.2"></rect><rect x="13.5" y="5" width="4" height="14" rx="1.2"></rect></svg>
+      </button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const timeEl = document.getElementById('time');
+  const btnToggle = document.getElementById('btnToggle');
+  const btnReset = document.getElementById('btnReset');
+  const btnFull = document.getElementById('btnFull');
+  const btnRotate = document.getElementById('btnRotate');
+  const icoPlay = document.getElementById('icoPlay');
+  const icoPause = document.getElementById('icoPause');
+  const hint = document.getElementById('hint');
+  const clock = document.querySelector('.clock');
+  const rotor = document.getElementById('rotor');
+
+  const STORE = 'timer.rotated';
+  let running = false;
+  let elapsed = 0;      // 累计毫秒
+  let startedAt = 0;    // 本段开始的时间戳
+  let raf = 0;
+
+  const pad = (n, w) => String(n).padStart(w, '0');
+  function fmt(ms) {
+    const total = Math.max(0, ms);
+    const cs = Math.floor(total % 1000 / 10);
+    const s = Math.floor(total / 1000) % 60;
+    const m = Math.floor(total / 60000) % 60;
+    const h = Math.floor(total / 3600000);
+    return (h > 0 ? h + ':' : '') + pad(m, 2) + ':' + pad(s, 2) + '.' + pad(cs, 2);
+  }
+  function now() { return performance.now(); }
+
+  // 字尽量大：按容器实际宽高量一次文字尺寸，再按比例放大/缩小（字号变了就重算）。
+  let measureSize = 100;
+  function fit() {
+    const w = clock.clientWidth, h = clock.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    timeEl.style.fontSize = measureSize + 'px';
+    /* ⚠️ 用 offsetWidth/offsetHeight（**布局尺寸**），不用 getBoundingClientRect：
+       旋转 90° 之后那个 bbox 是"转过的外接框"（宽高互换），拿它算会把字算小一半。 */
+    const tw = timeEl.offsetWidth, th = timeEl.offsetHeight;
+    if (tw <= 0 || th <= 0) return;
+    const scale = Math.min(w * 0.97 / tw, h * 0.96 / th);
+    const next = Math.max(24, Math.floor(measureSize * scale));
+    measureSize = next;
+    timeEl.style.fontSize = next + 'px';
+  }
+
+  function paint() {
+    paintText(fmt(running ? elapsed + (now() - startedAt) : elapsed));
+  }
+  let lastText = '';
+  function paintText(t) {
+    if (t !== lastText) { lastText = t; timeEl.textContent = t; fit(); }
+  }
+  function loop() {
+    if (!running) return;
+    paintText(fmt(elapsed + (now() - startedAt)));
+    raf = requestAnimationFrame(loop);
+  }
+
+  function setIcon() {
+    icoPlay.style.display = running ? 'none' : 'block';
+    icoPause.style.display = running ? 'block' : 'none';
+    btnToggle.setAttribute('aria-label', running ? '暂停' : '开始');
+  }
+  function toggle() {
+    if (running) {
+      elapsed += now() - startedAt;
+      running = false;
+      cancelAnimationFrame(raf);
+      paint();
+    } else {
+      startedAt = now();
+      running = true;
+      loop();
+    }
+    setIcon();
+    hideHint();
+  }
+  function reset() {
+    running = false;
+    cancelAnimationFrame(raf);
+    elapsed = 0;
+    paint();
+    setIcon();
+    hideHint();
+  }
+
+  function hideHint() { hint.style.opacity = '0'; }
+  setTimeout(hideHint, 5000);
+
+  btnToggle.addEventListener('click', toggle);
+  btnReset.addEventListener('click', reset);
+
+  // ENTER：大按键（单键 USB 键盘默认 Enter）开始/暂停；空格也顺手支持。
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      if (e.repeat) return;
+      toggle();
+    }
+  }, { passive: false });
+
+  // 旋转：竖屏时把整块 UI 转 90° 当横屏用（不动系统自动旋转）。
+  function applyRotate(on) {
+    document.body.classList.toggle('rotated', !!on);
+    try { localStorage.setItem(STORE, on ? '1' : '0'); } catch (err) {}
+    requestAnimationFrame(() => { fit(); });
+  }
+  btnRotate.addEventListener('click', () => applyRotate(!document.body.classList.contains('rotated')));
+
+  // 全屏（不支持就静默忽略；iOS 走不到这里，他的机器支持）
+  btnFull.addEventListener('click', () => {
+    const d = document.documentElement;
+    if (document.fullscreenElement) { document.exitFullscreen?.(); return; }
+    d.requestFullscreen?.().catch(() => {});
+  });
+
+  // 尺寸变化 / 转屏 / 全屏切换都重新量字
+  window.addEventListener('resize', () => requestAnimationFrame(fit));
+  window.addEventListener('orientationchange', () => requestAnimationFrame(fit));
+  document.addEventListener('fullscreenchange', () => requestAnimationFrame(fit));
+
+  try { if (localStorage.getItem(STORE) === '1') applyRotate(true); } catch (err) {}
+  paint();
+  setIcon();
+})();
+</script>
+</body>
+</html>
