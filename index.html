@@ -26,6 +26,11 @@
     --panel: #fff;
     --line: #e7e7e7;
     --hint: #9a9a9a;
+    /* 安全距离：异形屏（灵动岛/刘海）左右取**同样的值**（取两边最大），上下同理；
+       底线 12px，保证不贴边。全屏时背景铺满、内容留在安全区里。 */
+    --safe-x: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px), 12px);
+    --safe-top: max(env(safe-area-inset-top, 0px), 12px);
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
   }
   /* 底色：白 / 黑（黑底时控件也换一套中性色，字色由用户另选） */
   body[data-bg="dark"] { --bg: #000; --soft: rgba(255,255,255,.14); --ctl-ink: #fff; --ctl-press: rgba(255,255,255,.26); --panel: #17171a; --line: #2b2b30; --hint: #8b8b90; }
@@ -35,8 +40,8 @@
   #rotor { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; }
   body.rotated #rotor { width: 100vh; height: 100vw; inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); transform-origin: center center; }
 
-  .tools { position: absolute; top: max(10px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; z-index: 6; }
-  .tools-left { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 12px; z-index: 6; }
+  .tools { position: absolute; top: var(--safe-top); right: var(--safe-x); display: flex; gap: 8px; z-index: 6; }
+  .tools-left { position: absolute; top: var(--safe-top); left: var(--safe-x); z-index: 6; }
   .btn {
     width: 44px; height: 44px; border: 0; border-radius: 22px; background: var(--soft); color: var(--ctl-ink);
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
@@ -45,7 +50,7 @@
   .btn:active { transform: scale(.92); background: var(--ctl-press); }
   .btn svg { width: 22px; height: 22px; display: block; }
 
-  .clock { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 3vw; min-height: 0; }
+  .clock { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 var(--safe-x); min-height: 0; }
   #time {
     font-family: -apple-system, "SF Pro Text", "HarmonyOS Sans", "PingFang SC", system-ui, sans-serif;
     font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: .01em;
@@ -60,14 +65,14 @@
     text-shadow: 0 0 8px var(--ink), 0 0 22px var(--ink);
   }
 
-  .controls { position: absolute; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 10px; z-index: 6; }
+  .controls { position: absolute; right: var(--safe-x); bottom: var(--safe-bottom); display: flex; gap: 10px; z-index: 6; }
   .controls .btn { width: 52px; height: 52px; border-radius: 26px; }
   .controls .btn svg { width: 24px; height: 24px; }
-  #hint { position: absolute; left: 16px; bottom: max(20px, env(safe-area-inset-bottom)); font-size: 12px; color: var(--hint); transition: opacity .6s ease; pointer-events: none; }
+  #hint { position: absolute; left: var(--safe-x); bottom: calc(var(--safe-bottom) + 6px); font-size: 12px; color: var(--hint); transition: opacity .6s ease; pointer-events: none; }
 
   /* ── 主题面板（左上角）────────────── */
   #panel {
-    position: absolute; left: 10px; top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    position: absolute; left: var(--safe-x); top: calc(var(--safe-top) + 52px);
     width: 248px; padding: 8px; border-radius: 16px; background: var(--panel);
     box-shadow: 0 12px 40px rgba(0,0,0,.22); z-index: 20; display: none;
   }
